@@ -161,6 +161,7 @@ CSRC = $(STARTUPSRC) \
        mempools.c \
        worker.c \
        bms.c \
+       built_in_test.c \
        $(HWSRC) \
        $(APPSRC) \
        $(NRFSRC) \
