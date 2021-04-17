@@ -202,6 +202,7 @@ void assert_failed(uint8_t* file, uint32_t line) {
 }
 
 int main(void) {
+
 	halInit();
 	chSysInit();
 
@@ -218,12 +219,6 @@ int main(void) {
 	palSetPadMode(BOOT_OK_GPIO, BOOT_OK_PIN, PAL_MODE_OUTPUT_PUSHPULL);
 	palClearPad(BOOT_OK_GPIO, BOOT_OK_PIN);
 #endif
-
-	static volatile FlagStatus CSRstatusreg1;
-	static volatile FlagStatus CSRstatusreg2;
-
-	CSRstatusreg1 = RCC_GetFlagStatus(RCC_FLAG_IWDGRST);
-	CSRstatusreg2 = RCC_GetFlagStatus(RCC_FLAG_WWDGRST);
 
 	chThdSleepMilliseconds(100);
 
