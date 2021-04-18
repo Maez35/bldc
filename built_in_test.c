@@ -36,12 +36,7 @@
 #include "mcpwm_foc.h"
 #include "built_in_test.h"
 
-// Threads
-static THD_WORKING_AREA(built_in_test_thread_wa, 1024);
-static THD_FUNCTION(built_in_test_thread, arg);
-
 // Private functions
-static void terminal_cmd_BIT_check_offset(int argc, const char **argv);
 static void terminal_cmd_BIT_single_pulse_test(int argc, const char **argv);
 static void terminal_cmd_BIT_check_all_leg(int argc, const char **argv);
 
@@ -65,15 +60,8 @@ static void mcpwm_timer_reinit(int f_sw);
 #define TIMER_UPDATE_SAMP(samp) \
 		TIM2->CCR2 = (samp / 2);
 
+
 void built_in_test_init(void) {
-
-	chThdCreateStatic(built_in_test_thread_wa, sizeof(built_in_test_thread_wa), NORMALPRIO, built_in_test_thread, NULL);
-
-	terminal_register_command_callback(
-			"BIT_check_offset",
-			"Check sensor current and offset",
-			0,
-			terminal_cmd_BIT_check_offset);
 
 	terminal_register_command_callback(
 			"BIT_single_pulse_test",
@@ -88,117 +76,7 @@ void built_in_test_init(void) {
 			terminal_cmd_BIT_check_all_leg);
 }
 
-
-static THD_FUNCTION(built_in_test_thread, arg) {
-	(void)arg;
-
-	chRegSetThreadName("built in test");
-
-	for(;;) {
-
-//		int curr0_offset;
-//		int curr1_offset;
-//		int curr2_offset;
-//
-//		mcpwm_foc_get_current_offsets(&curr0_offset, &curr1_offset, &curr2_offset, false);
-//
-//		built_in_test_1.m_motor_I_offset_L1 = curr0_offset;
-//		built_in_test_1.m_motor_I_offset_L2 = curr1_offset;
-//		built_in_test_1.m_motor_I_offset_L3 = curr2_offset;
-//
-//		built_in_test_1.m_motor_V_L1 = ((float)ADC_Value[ADC_IND_SENS1] * V_REG / 4096.0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
-//		built_in_test_1.m_motor_V_L2 = ((float)ADC_Value[ADC_IND_SENS2] * V_REG / 4096.0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
-//		built_in_test_1.m_motor_V_L3 = ((float)ADC_Value[ADC_IND_SENS3] * V_REG / 4096.0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
-//
-//		built_in_test_1.m_motor_I_L1 = (((float)(ADC_Value[ADC_IND_CURR1] - built_in_test_1.m_motor_I_offset_L1)) * V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN);
-//		built_in_test_1.m_motor_I_L2 = (((float)(ADC_Value[ADC_IND_CURR2] - built_in_test_1.m_motor_I_offset_L2)) * V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN);
-//#ifdef HW_HAS_3_SHUNTS
-//		built_in_test_1.m_motor_I_L3 = (((float)(ADC_Value[ADC_IND_CURR3] - built_in_test_1.m_motor_I_offset_L3)) * V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN);
-//#endif
-//
-//		chThdSleepMilliseconds(1);
-//
-//		if (BIT_status == true){
-//			// Reset the watchdog
-//			timeout_feed_WDT(THREAD_MCPWM);
-//		}
-	}
-}
-
-static void terminal_cmd_BIT_check_offset(int argc, const char **argv) {
-	(void)argc;
-	(void)argv;
-
-	/**************************************************************************************/
-	utils_sys_lock_cnt();
-
-	mc_configuration *mcconf 	 = mempools_alloc_mcconf();
-	mc_configuration *mcconf_old = mempools_alloc_mcconf();
-
-	*mcconf 	= *mc_interface_get_configuration();
-	*mcconf_old = *mc_interface_get_configuration();
-
-	int motor_old = mc_interface_get_motor_thread();
-
-	mc_interface_select_motor_thread(1);
-	mc_interface_unlock();
-	mc_interface_release_motor();
-	mc_interface_lock();
-
-	mc_interface_select_motor_thread(2);
-	mc_interface_unlock();
-	mc_interface_release_motor();
-	mc_interface_lock();
-
-	// Disable timeout
-	systime_t tout = timeout_get_timeout_msec();
-	float tout_c = timeout_get_brake_current();
-	timeout_reset();
-	timeout_configure(65000, 0.0);
-	timeout_feed_WDT(THREAD_MCPWM);
-	timeout_configure_IWDT_slowest();
-
-	/**************************************************************************************/
-	mc_interface_select_motor_thread(1);
-	mc_state m_state = mc_interface_get_state();
-	commands_printf("State Motor Control %d \n", m_state);
-
-	commands_printf("V L1: %.2f V \tV L2: %.2f V \tV L3: %.2f V", (double)built_in_test_1.m_motor_V_L1, (double)built_in_test_1.m_motor_V_L2, (double)built_in_test_1.m_motor_V_L3);
-	commands_printf("I L1: %.2f A \tI L2: %.2f A \tI L3: %.2f A", (double)built_in_test_1.m_motor_I_L1, (double)built_in_test_1.m_motor_I_L2, (double)built_in_test_1.m_motor_I_L3);
-	commands_printf("I-offset L1: %.2f A \tI-offset L2: %.2f A \tI-offset L3: %.2f A", (double)built_in_test_1.m_motor_I_offset_L1, (double)built_in_test_1.m_motor_I_offset_L2, (double)built_in_test_1.m_motor_I_offset_L3);
-	commands_printf(" ");
-
-	/**************************************************************************************/
-	timeout_configure_IWDT();
-	timeout_feed_WDT(THREAD_MCPWM);
-	timeout_configure(tout, tout_c);
-
-	mc_interface_set_configuration(mcconf_old);
-
-	mempools_free_mcconf(mcconf);
-	mempools_free_mcconf(mcconf_old);
-
-	mc_interface_select_motor_thread(1);
-	mc_interface_release_motor();
-	mc_interface_unlock();
-	mc_interface_select_motor_thread(2);
-	mc_interface_release_motor();
-	mc_interface_unlock();
-
-	mc_interface_select_motor_thread(motor_old);
-	mc_interface_release_motor();
-
-	utils_sys_unlock_cnt();
-	/**************************************************************************************/
-
-	commands_printf("");
-
-}
-
 static void terminal_cmd_BIT_single_pulse_test(int argc, const char **argv) {
-
-	BIT_status = true;
-
 	(void)argc;
 	(void)argv;
 
@@ -357,8 +235,6 @@ static void terminal_cmd_BIT_single_pulse_test(int argc, const char **argv) {
 		commands_printf("4 or 6 arguments required. For example: BIT_single_pulse_test 10.2 2.3 A Bottom --supply-with C");
 	}
 	commands_printf(" ");
-
-	BIT_status = false;
 }
 
 
@@ -461,7 +337,6 @@ static void terminal_cmd_BIT_check_all_leg(int argc, const char **argv){
 
 			commands_printf("%s %s %s %s %s supply with  %s", argv[0], argv[1], argv[2], "C", "BOTTOM", "B");
 			single_pulse_test(first_pulse_dwell_us, first_pulse_off_us, "C","B","B");
-
 		}
 
 		switch (mcconf_old->motor_type) {
@@ -509,7 +384,6 @@ static void terminal_cmd_BIT_check_all_leg(int argc, const char **argv){
 	}
 
 	commands_printf(" ");
-
 }
 
 void single_pulse_test (
@@ -548,43 +422,43 @@ void single_pulse_test (
 	//pulse test Bottom mosfets
 	if(side[0] == 'B') {
 		// clear pin top mosfets
-		palClearPad(HW_TOP_CH1_GPIO, HW_TOP_CH1_PIN);
-		palClearPad(HW_TOP_CH2_GPIO, HW_TOP_CH2_PIN);
-		palClearPad(HW_TOP_CH3_GPIO, HW_TOP_CH3_PIN);
+		palClearPad(GPIOA, 8);
+		palClearPad(GPIOA, 9);
+		palClearPad(GPIOA, 10);
 		// TOP  Re-Configuration: Channel 1 to 3 as gpio function push-pull
-		palSetPadMode(HW_TOP_CH1_GPIO, HW_TOP_CH1_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-		palSetPadMode(HW_TOP_CH2_GPIO, HW_TOP_CH2_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-		palSetPadMode(HW_TOP_CH3_GPIO, HW_TOP_CH3_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+		palSetPadMode(GPIOA, 8, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+		palSetPadMode(GPIOA, 9, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+		palSetPadMode(GPIOA, 10, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
 	}
 
 	//pulse test Top mosfets
 	else if(side[0] == 'T') {
 		// clear bottom mosfets
-		palClearPad(HW_BOTT_CH1_GPIO, HW_BOTT_CH1_PIN);
-		palClearPad(HW_BOTT_CH2_GPIO, HW_BOTT_CH2_PIN);
-		palClearPad(HW_BOTT_CH3_GPIO, HW_BOTT_CH3_PIN);
+		palClearPad(GPIOB, 13);
+		palClearPad(GPIOB, 14);
+		palClearPad(GPIOB, 15);
 		// BOTTOM Re-Configuration: Channel 1 to 3 as gpio function push-pull
-		palSetPadMode(HW_BOTT_CH1_GPIO, HW_BOTT_CH1_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-		palSetPadMode(HW_BOTT_CH2_GPIO, HW_BOTT_CH2_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-		palSetPadMode(HW_BOTT_CH3_GPIO, HW_BOTT_CH3_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+		palSetPadMode(GPIOB, 13, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+		palSetPadMode(GPIOB, 14, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+		palSetPadMode(GPIOB, 15, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
 
 		// when powerstage is bootstrapped, we need to pre-charge the top gate driver by driving the leg output
 		// to zero volts.
 		switch (leg[0]) {
 		case 'A':
-			palSetPad(HW_BOTT_CH1_GPIO, HW_BOTT_CH1_PIN);
+			palSetPad(GPIOB, 13);
 			chThdSleepMicroseconds(100);
-			palClearPad(HW_BOTT_CH1_GPIO, HW_BOTT_CH1_PIN);
+			palClearPad(GPIOB, 13);
 			break;
 		case 'B':
-			palSetPad(HW_BOTT_CH2_GPIO, HW_BOTT_CH2_PIN);
+			palSetPad(GPIOB, 14);
 			chThdSleepMicroseconds(100);
-			palClearPad(HW_BOTT_CH2_GPIO, HW_BOTT_CH2_PIN);
+			palClearPad(GPIOB, 14);
 			break;
 		case 'C':
-			palSetPad(HW_BOTT_CH3_GPIO, HW_BOTT_CH3_PIN);
+			palSetPad(GPIOB, 15);
 			chThdSleepMicroseconds(100);
-			palClearPad(HW_BOTT_CH3_GPIO, HW_BOTT_CH3_PIN);
+			palClearPad(GPIOB, 15);
 			break;
 		}
 	}
@@ -594,41 +468,37 @@ void single_pulse_test (
 	switch (supply_leg[0]) {
 	case 'A':
 		if(side[0] == 'B')
-			palSetPad(HW_TOP_CH1_GPIO, HW_TOP_CH1_PIN);		// PA8
+			palSetPad(GPIOA, 8);
 		else if(side[0] == 'T')
-			palSetPad(HW_BOTT_CH1_GPIO, HW_BOTT_CH1_PIN);	// PB13
+			palSetPad(GPIOB, 13);
 		break;
 
 	case 'B':
 		if(side[0] == 'B')
-			palSetPad(HW_TOP_CH2_GPIO, HW_TOP_CH2_PIN);		// PA9
+			palSetPad(GPIOA, 9);
 		else if(side[0] == 'T')
-			palSetPad(HW_BOTT_CH2_GPIO, HW_BOTT_CH2_PIN);	// PB14
+			palSetPad(GPIOB, 14);
 		break;
 
 	case 'C':
 		if(side[0] == 'B')
-			palSetPad(HW_TOP_CH3_GPIO, HW_TOP_CH3_PIN);		// PA10
+			palSetPad(GPIOA, 10);
 		else if(side[0] == 'T')
-			palSetPad(HW_BOTT_CH3_GPIO, HW_BOTT_CH3_PIN);	// PB15
+			palSetPad(GPIOB, 15);
 		break;
-
 	}
 
-	chThdSleepMilliseconds(1);	// wait for mosfet to fully turn ON
+//	chThdSleepMilliseconds(1);	// wait for mosfet to fully turn ON
 
 	TIM_DeInit(TIM1);
 
 	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
 	TIM_OCInitTypeDef  TIM_OCInitStructure;
 
-
 	switch (mcconf_old->motor_type) {
 	case MOTOR_TYPE_BLDC:
 	case MOTOR_TYPE_DC:
-
 		TIM8->CNT = 0;
-
 		TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
 		TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
 		TIM_OCInitStructure.TIM_Pulse = 200;
@@ -648,9 +518,7 @@ void single_pulse_test (
 		break;
 
 	case MOTOR_TYPE_FOC:
-
 		TIM2->CNT = 0;
-
 		TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
 		TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
 		TIM_OCInitStructure.TIM_Pulse = 200;
@@ -676,13 +544,10 @@ void single_pulse_test (
 		break;
 	}
 
-
 	TIM1->CNT = 0;
 
-	// TIM1 clock enable
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
 
-	// Time Base configuration
 	TIM_TimeBaseStructure.TIM_Prescaler = 0;
 	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
 	TIM_TimeBaseStructure.TIM_Period = SYSTEM_CORE_CLOCK / (int)foc_f_sw_new;
@@ -694,7 +559,7 @@ void single_pulse_test (
 	TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
 	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
 	TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Enable;
-	TIM_OCInitStructure.TIM_Pulse = compare_first; 					//TIM1->ARR / 2;
+	TIM_OCInitStructure.TIM_Pulse = compare_first;
 	TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;
 	TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCIdleState_Reset;
 
@@ -702,8 +567,6 @@ void single_pulse_test (
 		TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_Low;
 		TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_Low;
 	}
-
-	//pulse test top mosfet
 	else if(side[0] == 'T') {
 		TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
 		TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;
@@ -729,10 +592,8 @@ void single_pulse_test (
 
 	TIM_ClearFlag(TIM1, TIM_FLAG_CC1 | TIM_FLAG_CC2 | TIM_FLAG_CC3);
 
-	// Enable TIM1
 	TIM_Cmd(TIM1, ENABLE);
 
-	// Main Output Enable
 	TIM_CtrlPWMOutputs(TIM1, ENABLE);
 
 	float m_V_in = GET_INPUT_VOLTAGE();
@@ -806,34 +667,31 @@ void single_pulse_test (
 	}
 
 	// turn off all mosfets
-	palClearPad(HW_TOP_CH1_GPIO, HW_TOP_CH1_PIN);
-	palClearPad(HW_TOP_CH2_GPIO, HW_TOP_CH2_PIN);
-	palClearPad(HW_TOP_CH3_GPIO, HW_TOP_CH3_PIN);
+	palClearPad(GPIOA, 8);
+	palClearPad(GPIOA, 9);
+	palClearPad(GPIOA, 10);
 
-	palClearPad(HW_BOTT_CH1_GPIO, HW_BOTT_CH1_PIN);
-	palClearPad(HW_BOTT_CH2_GPIO, HW_BOTT_CH2_PIN);
-	palClearPad(HW_BOTT_CH3_GPIO, HW_BOTT_CH3_PIN);
+	palClearPad(GPIOB, 13);
+	palClearPad(GPIOB, 14);
+	palClearPad(GPIOB, 15);
 
 	// GPIO Configuration: Channel 1 to 6 as alternate function push-pull
-	palSetPadMode(HW_TOP_CH1_GPIO, HW_TOP_CH1_PIN, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-	palSetPadMode(HW_TOP_CH2_GPIO, HW_TOP_CH2_PIN, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-	palSetPadMode(HW_TOP_CH3_GPIO, HW_TOP_CH3_PIN, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+	palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+	palSetPadMode(GPIOA, 9, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+	palSetPadMode(GPIOA, 10, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
 
-	palSetPadMode(HW_BOTT_CH1_GPIO, HW_BOTT_CH1_PIN, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-	palSetPadMode(HW_BOTT_CH2_GPIO, HW_BOTT_CH2_PIN, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
-	palSetPadMode(HW_BOTT_CH3_GPIO, HW_BOTT_CH3_PIN, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+	palSetPadMode(GPIOB, 13, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+	palSetPadMode(GPIOB, 14, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
+	palSetPadMode(GPIOB, 15, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_PUDR_PULLDOWN);
 
 	/**************************************************************************************/
 	// Reset the watchdog
 	timeout_feed_WDT(THREAD_TIMER);
 
-	//	mc_interface_set_configuration(mcconf_old);
-
 	mempools_free_mcconf(mcconf);
 	mempools_free_mcconf(mcconf_old);
 
 	/**************************************************************************************/
-
 	commands_printf(" ");
 }
 
