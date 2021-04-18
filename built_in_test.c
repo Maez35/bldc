@@ -488,7 +488,7 @@ void single_pulse_test (
 		break;
 	}
 
-//	chThdSleepMilliseconds(1);	// wait for mosfet to fully turn ON
+	chThdSleepMicroseconds(500);	// wait for mosfet to fully turn ON
 
 	TIM_DeInit(TIM1);
 
@@ -501,7 +501,7 @@ void single_pulse_test (
 		TIM8->CNT = 0;
 		TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
 		TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-		TIM_OCInitStructure.TIM_Pulse = 200;
+		TIM_OCInitStructure.TIM_Pulse = 225;
 		TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
 		TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;
 		TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Set;
@@ -521,7 +521,7 @@ void single_pulse_test (
 		TIM2->CNT = 0;
 		TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
 		TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-		TIM_OCInitStructure.TIM_Pulse = 200;
+		TIM_OCInitStructure.TIM_Pulse = 225;
 		TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
 		TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;
 		TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Set;
